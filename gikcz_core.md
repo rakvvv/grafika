@@ -1,3 +1,6 @@
+https://github.com/meemknight/openglConfiguration/tree/master
+
+
 # Kolokwia GiKCzK - Pytania
 
 Pierdolony śmieć farciarski skurwiel zajebany.
