@@ -1,3 +1,201 @@
+```
+#include <glad/glad.h>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+#include <openglDebug.h>
+#include <demoShaderLoader.h>
+#include <iostream>
+
+#define USE_GPU_ENGINE 0
+extern "C"
+{
+	__declspec(dllexport) unsigned long NvOptimusEnablement = USE_GPU_ENGINE;
+	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = USE_GPU_ENGINE;
+}
+
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+}
+
+const char* vertexShaderSource = R"(
+#version 330 core
+layout (location = 0) in vec3 aPos;
+
+void main()
+{
+    gl_Position = vec4(aPos, 1.0);
+}
+)";
+
+const char* fragmentShaderSource = R"(
+#version 330 core
+out vec4 FragColor;
+
+void main()
+{
+    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f); // Orange color
+}
+)";
+
+int main(void)
+{
+	if (!glfwInit())
+		return -1;
+
+#pragma region report opengl errors to std
+	//enable opengl debugging output.
+	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
+#pragma endregion
+
+	//glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	//glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+	//glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); //you might want to do this when testing the game for shipping
+
+	GLFWwindow* window = glfwCreateWindow(640, 480, "Simple example", NULL, NULL);
+	if (!window)
+	{
+		glfwTerminate();
+		return -1;
+	}
+
+	glfwSetKeyCallback(window, key_callback);
+
+	glfwMakeContextCurrent(window);
+	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+	glfwSwapInterval(1);
+
+#pragma region report opengl errors to std
+	glEnable(GL_DEBUG_OUTPUT);
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	glDebugMessageCallback(glDebugOutput, 0);
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+#pragma endregion
+
+	// Define the vertex data
+	float vertices[] = {
+		-0.5f, -0.5f, 0.0f,
+		 0.5f, -0.5f, 0.0f,
+		 0.0f,  0.5f, 0.0f
+	};
+
+	// Create and compile the vertex shader
+	unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
+	glCompileShader(vertexShader);
+
+	// Check for vertex shader compilation errors
+	int success;
+	char infoLog[512];
+	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
+		std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+	}
+
+	// Create and compile the fragment shader
+	unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
+	glCompileShader(fragmentShader);
+
+	// Check for fragment shader compilation errors
+	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
+		std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+	}
+
+	// Link the vertex and fragment shader into a shader program
+	unsigned int shaderProgram = glCreateProgram();
+	glAttachShader(shaderProgram, vertexShader);
+	glAttachShader(shaderProgram, fragmentShader);
+	glLinkProgram(shaderProgram);
+
+	// Check for linking errors
+	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+	if (!success) {
+		glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
+		std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+	}
+
+	// Delete the shaders as they're linked into our program now and no longer necessary
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+
+	// Create a vertex array object (VAO)
+	unsigned int VAO;
+	glGenVertexArrays(1, &VAO);
+
+	// Create a vertex buffer object (VBO)
+	unsigned int VBO;
+	glGenBuffers(1, &VBO);
+
+	// Bind the VAO
+	glBindVertexArray(VAO);
+
+	// Bind the VBO
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	// Configure the vertex attribute pointers
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	// Unbind the VBO (not the VAO)
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	// Render loop
+	while (!glfwWindowShouldClose(window)) {
+		int width, height;
+		glfwGetFramebufferSize(window, &width, &height);
+		glViewport(0, 0, width, height);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		// Use the shader program
+		glUseProgram(shaderProgram);
+
+		// Bind the VAO
+		glBindVertexArray(VAO);
+
+		// Draw the triangle
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+
+		// Swap the buffers
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+
+	// Clean up
+	glDeleteVertexArrays(1, &VAO);
+	glDeleteBuffers(1, &VBO);
+	glDeleteProgram(shaderProgram);
+
+	// Terminate GLFW
+	glfwTerminate();
+	return 0;
+}
+```
+```
+#version 330 core
+layout (location = 0) in vec3 aPos;
+
+void main()
+{
+    gl_Position = vec4(aPos, 1.0);
+}
+fragment.frag:
+
+```
+```
+#version 330 core
+out vec4 FragColor;
+
+void main()
+{
+    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f); // Orange color
+}
+```
 https://github.com/meemknight/openglConfiguration/tree/master
 
 
