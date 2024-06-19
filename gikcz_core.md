@@ -1,4 +1,13 @@
 ```
+public Vec3f cross(Vec3f other) {
+        float crossX = this.y * other.z - this.z * other.y;
+        float crossY = this.z * other.x - this.x * other.z;
+        float crossZ = this.x * other.y - this.y * other.x;
+        return new Vec3f(crossX, crossY, crossZ);
+    }
+```
+
+```
 float vertices[] = {
     // positions          // colors
     // first square (green)
